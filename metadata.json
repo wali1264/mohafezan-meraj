@@ -1,5 +1,5 @@
 {
-  "name": "Secure QR Gate System",
+  "name": "Secure QR Gate System 1",
   "description": "Offline-first secure QR personnel verification system using HMAC signatures and dynamic scanning.",
   "requestFramePermissions": [
     "camera"

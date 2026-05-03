@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import jsQR from 'jsqr';
-import { ChevronLeft, CheckCircle2, XCircle, ShieldAlert, History, Upload } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, XCircle, ShieldAlert, History, Upload, Fingerprint } from 'lucide-react';
 import { useAppStore, User } from '../store';
 import { verifySecuredPayload } from '../lib/crypto';
 
@@ -14,13 +14,15 @@ interface ScanResult {
 
 export default function GuardScanner() {
   const navigate = useNavigate();
-  const { getUserById, addLog } = useAppStore();
+  const { getUserById, getUserByFingerprint, addLog } = useAppStore();
   
   const [result, setResult] = useState<ScanResult>({ status: 'idle' });
   const [isProcessing, setIsProcessing] = useState(false);
   const [camError, setCamError] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isFpMode, setIsFpMode] = useState(false);
 
   // Auto reset the result after 5 seconds
   useEffect(() => {
@@ -32,6 +34,37 @@ export default function GuardScanner() {
       return () => clearTimeout(timer);
     }
   }, [result]);
+
+  const handleFingerprintScan = () => {
+    const enteredFp = window.prompt("سیمولاتور اسکن: شناسه اثر انگشت را وارد کنید (Mock Fingerprint Scan):");
+    if (!enteredFp) return;
+
+    setIsProcessing(true);
+    const user = getUserByFingerprint(enteredFp);
+
+    if (!user) {
+      setResult({ 
+        status: 'invalid',
+        errorStr: "Unknown fingerprint / اثر انگشت ناشناس"
+      });
+      addLog({
+        userId: 'unknown',
+        time: Date.now(),
+        gate: 'Main Gate (Fingerprint)',
+        verified: false,
+        error: "Unknown Fingerprint"
+      });
+      return;
+    }
+
+    setResult({ status: 'valid', user });
+    addLog({
+      userId: user.id,
+      time: Date.now(),
+      gate: 'Main Gate (Fingerprint)',
+      verified: true
+    });
+  };
 
   const handleScan = useCallback((detectedCodes: { rawValue: string }[]) => {
     if (isProcessing) return;
@@ -133,49 +166,78 @@ export default function GuardScanner() {
 
       <div className="flex-1 relative flex flex-col">
         {result.status === 'idle' ? (
-          <div className="flex-1 w-full bg-black relative">
-            <Scanner
-               onScan={handleScan}
-               onError={(e) => setCamError((e as Error)?.message || String(e))}
-               styles={{ container: { width: '100%', height: '100%' } }}
-               components={{ finder: false }}
-            />
-            {camError && (
-              <div className="absolute top-4 left-4 right-4 bg-red-500 text-white p-4 rounded-xl text-center z-50 text-sm font-semibold shadow-lg">
-                خطای دوربین / Camera Error:<br/>
-                {camError}<br/>
-                <span className="text-xs font-normal opacity-80 mt-1 block">
-                  Please grant camera permissions and ensure the device has a camera.
-                </span>
+          <div className="flex-1 w-full bg-black relative flex flex-col">
+            {isFpMode ? (
+              <div className="flex-1 flex flex-col items-center justify-center bg-slate-900 z-10 w-full h-full">
+                <p className="text-slate-400 font-bold mb-12 text-lg">انگشت خود را روی سنسور قرار دهید</p>
+                <div 
+                  onClick={handleFingerprintScan}
+                  className="w-64 h-64 border-4 border-emerald-500/30 rounded-full flex items-center justify-center bg-emerald-500/10 cursor-pointer hover:bg-emerald-500/20 transition-colors animate-pulse shadow-[0_0_50px_rgba(16,185,129,0.2)]"
+                >
+                  <Fingerprint className="w-40 h-40 text-emerald-400" strokeWidth={1} />
+                </div>
+                <button 
+                  onClick={() => setIsFpMode(false)}
+                  className="mt-16 text-slate-400 hover:text-white underline text-sm"
+                >
+                  بازگشت به اسکنر دوربین (Back to QR)
+                </button>
               </div>
+            ) : (
+              <>
+                <Scanner
+                   onScan={handleScan}
+                   onError={(e) => setCamError((e as Error)?.message || String(e))}
+                   styles={{ container: { width: '100%', height: '100%' } }}
+                   components={{ finder: false }}
+                />
+                {camError && (
+                  <div className="absolute top-4 left-4 right-4 bg-red-500 text-white p-4 rounded-xl text-center z-50 text-sm font-semibold shadow-lg">
+                    خطای دوربین / Camera Error:<br/>
+                    {camError}<br/>
+                    <span className="text-xs font-normal opacity-80 mt-1 block">
+                      Please grant camera permissions and ensure the device has a camera.
+                    </span>
+                  </div>
+                )}
+                {/* Overlay */}
+                <div className="absolute inset-0 border-[40px] border-black/50 flex items-center justify-center pointer-events-none">
+                  <div className="w-64 h-64 border-4 border-indigo-500 rounded-3xl relative">
+                    <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-3xl"></div>
+                    <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-3xl"></div>
+                    <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-3xl"></div>
+                    <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-3xl"></div>
+                  </div>
+                </div>
+                <div className="absolute bottom-6 w-full flex flex-col items-center justify-center text-white/70 font-medium z-50 px-4">
+                  <p className="mb-4 text-center">Point camera at personnel QR code</p>
+                  
+                  <div className="flex gap-4 w-full max-w-sm">
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-2xl shadow-lg flex flex-col items-center justify-center font-bold text-sm transition-colors"
+                    >
+                      <Upload className="w-6 h-6 mb-1" />
+                      اسکن از عکس
+                    </button>
+                    <button 
+                      onClick={() => setIsFpMode(true)}
+                      className="flex-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white p-3 rounded-2xl shadow-lg flex flex-col items-center justify-center font-bold text-sm transition-colors"
+                    >
+                      <Fingerprint className="w-6 h-6 mb-1 text-green-400" />
+                      ثبت اثر انگشت
+                    </button>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    ref={fileInputRef}
+                    className="hidden" 
+                    onChange={handleImageUpload}
+                  />
+                </div>
+              </>
             )}
-            {/* Overlay */}
-            <div className="absolute inset-0 border-[40px] border-black/50 flex items-center justify-center pointer-events-none">
-              <div className="w-64 h-64 border-4 border-indigo-500 rounded-3xl relative">
-                <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-3xl"></div>
-                <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-3xl"></div>
-                <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-3xl"></div>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-3xl"></div>
-              </div>
-            </div>
-            <div className="absolute bottom-12 w-full flex flex-col items-center justify-center text-white/70 font-medium z-50">
-              <p className="mb-4 text-center">Point camera at personnel QR code</p>
-              
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center font-bold"
-              >
-                <Upload className="w-5 h-5 mr-2" />
-                اسکن از گالری / Scan Image
-              </button>
-              <input 
-                type="file" 
-                accept="image/*" 
-                ref={fileInputRef}
-                className="hidden" 
-                onChange={handleImageUpload}
-              />
-            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50">

@@ -7,6 +7,7 @@ export interface User {
   role: string;
   photoBase64: string;
   createdAt: number;
+  fingerprintId?: string;
 }
 
 export interface ScanLog {
@@ -23,6 +24,7 @@ interface AppState {
   addUser: (user: User) => void;
   addLog: (log: ScanLog) => void;
   getUserById: (id: string) => User | undefined;
+  getUserByFingerprint: (fingerprintId: string) => User | undefined;
 }
 
 export const useAppStore = create<AppState>()(
@@ -33,6 +35,7 @@ export const useAppStore = create<AppState>()(
       addUser: (user) => set((state) => ({ users: [...state.users, user] })),
       addLog: (log) => set((state) => ({ logs: [log, ...state.logs] })),
       getUserById: (id) => get().users.find((u) => u.id === id),
+      getUserByFingerprint: (fingerprintId) => get().users.find((u) => u.fingerprintId === fingerprintId),
     }),
     {
       name: 'secure-qr-storage',
