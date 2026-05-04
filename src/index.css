@@ -1,1 +1,29 @@
 @import "tailwindcss";
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  
+  body * {
+    visibility: hidden;
+  }
+
+  .print\:block,
+  .print\:block * {
+    visibility: visible;
+  }
+
+  .print\:block {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
