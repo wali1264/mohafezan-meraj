@@ -5,6 +5,8 @@ export interface OrderItem {
   name: string;
   price: number;
   qty: number;
+  image?: string;
+  emoji?: string;
 }
 
 export interface Order {
@@ -20,6 +22,7 @@ export interface FoodItem {
   name: string;
   price: number;
   emoji: string;
+  image?: string;
 }
 
 interface RestaurantDB extends DBSchema {

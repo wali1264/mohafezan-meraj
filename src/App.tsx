@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { defaultFoods } from './data';
 import { saveOrder, getOrders, updateOrderStatus, Order, OrderItem, saveFood, getFoods, initFoods, FoodItem } from './db';
-import { ShoppingCart, ChefHat, Receipt, Plus, Minus, Trash2, Printer, Settings } from 'lucide-react';
+import { ShoppingCart, ChefHat, Receipt, Plus, Minus, Trash2, Printer, Settings, ImagePlus } from 'lucide-react';
 import { cn } from './lib/utils';
 import { format } from 'date-fns';
 
@@ -22,6 +22,7 @@ export default function App() {
   const [newFoodName, setNewFoodName] = useState('');
   const [newFoodPrice, setNewFoodPrice] = useState('');
   const [newFoodEmoji, setNewFoodEmoji] = useState('🍲');
+  const [newFoodImage, setNewFoodImage] = useState<string | undefined>(undefined);
   
   // Ref for print section
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -59,7 +60,8 @@ export default function App() {
     await saveFood({
       name: newFoodName,
       price: parseInt(newFoodPrice),
-      emoji: newFoodEmoji || '🍲'
+      emoji: newFoodEmoji || '🍲',
+      image: newFoodImage
     });
     
     await loadData();
@@ -67,6 +69,18 @@ export default function App() {
     setNewFoodName('');
     setNewFoodPrice('');
     setNewFoodEmoji('🍲');
+    setNewFoodImage(undefined);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewFoodImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const addToCart = (food: FoodItem) => {
@@ -78,7 +92,7 @@ export default function App() {
           item.id === food.id ? { ...item, qty: item.qty + 1 } : item
         );
       }
-      return [...prev, { id: food.id!, name: food.name, price: food.price, qty: 1 }];
+      return [...prev, { id: food.id!, name: food.name, price: food.price, qty: 1, image: food.image, emoji: food.emoji }];
     });
   };
 
@@ -180,7 +194,15 @@ export default function App() {
               
               {showAddForm && (
                 <div className="mb-8 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center transition-all">
-                  <input type="text" placeholder="ایموجی (مثال: 🍔)" value={newFoodEmoji} onChange={e=>setNewFoodEmoji(e.target.value)} className="w-full md:w-40 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
+                  <label className="flex items-center justify-center w-12 h-12 md:w-auto md:px-4 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors shrink-0 overflow-hidden">
+                    {newFoodImage ? (
+                      <img src={newFoodImage} alt="Preview" className="w-full h-full object-cover rounded-md" />
+                    ) : (
+                      <ImagePlus size={24} className="text-slate-400" />
+                    )}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                  <input type="text" placeholder="ایموجی" value={newFoodEmoji} onChange={e=>setNewFoodEmoji(e.target.value)} className="w-full md:w-32 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
                   <input type="text" placeholder="نام غذا" value={newFoodName} onChange={e=>setNewFoodName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
                   <input type="number" placeholder="قیمت به تومان" value={newFoodPrice} onChange={e=>setNewFoodPrice(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" />
                   <div className="flex gap-2 w-full md:w-auto">
@@ -201,7 +223,11 @@ export default function App() {
                       className="bg-white border border-slate-200 rounded-2xl padding-0 flex flex-col items-center justify-center hover:border-indigo-300 hover:shadow-md transition-all group overflow-hidden"
                     >
                       <div className="p-5 flex flex-col items-center justify-center gap-3 w-full cursor-pointer" onClick={() => qty === 0 && addToCart(food)}>
-                        <span className="text-4xl group-hover:scale-110 transition-transform">{food.emoji}</span>
+                        {food.image ? (
+                          <img src={food.image} alt={food.name} className="w-16 h-16 object-cover rounded-full shadow-sm group-hover:scale-110 transition-transform" />
+                        ) : (
+                          <span className="text-4xl group-hover:scale-110 transition-transform">{food.emoji}</span>
+                        )}
                         <div className="text-center">
                           <h3 className="font-semibold text-slate-800">{food.name}</h3>
                           <p className="text-slate-500 font-bold mt-1 text-sm">{food.price.toLocaleString()} تومان</p>
@@ -327,16 +353,39 @@ export default function App() {
                          </div>
                        </div>
                        
-                       <ul className="mb-6 space-y-2">
-                         {order.items.map(item => (
-                           <li key={item.id} className="flex justify-between text-slate-700 font-medium">
-                             <span className="flex items-center gap-2">
-                               <span className="bg-slate-100 text-slate-600 rounded-md w-6 h-6 flex items-center justify-center text-xs">x{item.qty}</span>
-                               {item.name}
-                             </span>
-                           </li>
-                         ))}
+                       <ul className="mb-6 space-y-3">
+                         {order.items.map(item => {
+                           const originalFood = foodItems.find(f => f.id === item.id);
+                           const image = item.image || originalFood?.image;
+                           const emoji = item.emoji || originalFood?.emoji || '🍲';
+                           
+                           return (
+                             <li key={item.id} className="flex justify-between items-center text-slate-700 font-medium border-b border-slate-50 pb-2 last:border-0 last:pb-0">
+                               <div className="flex items-center gap-3">
+                                 {image ? (
+                                   <img src={image} alt={item.name} className="w-10 h-10 rounded-full object-cover shadow-sm bg-slate-50" />
+                                 ) : (
+                                   <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-xl shadow-sm">
+                                     {emoji}
+                                   </div>
+                                 )}
+                                 <span className="flex items-center gap-2">
+                                   <span className="bg-slate-100 text-slate-600 rounded-md px-2 py-1 flex items-center justify-center text-xs font-bold">x{item.qty}</span>
+                                   {item.name}
+                                 </span>
+                               </div>
+                               <div className="text-sm font-bold text-slate-500 bg-slate-50 px-3 py-1 rounded-lg">
+                                 {(item.price * item.qty).toLocaleString()} تومان
+                               </div>
+                             </li>
+                           );
+                         })}
                        </ul>
+                       
+                       <div className="flex justify-between items-center mb-6 pt-4 border-t border-slate-100">
+                         <span className="font-semibold text-slate-600">جمع کل سفارش:</span>
+                         <span className="text-lg font-bold text-indigo-700">{order.total.toLocaleString()} تومان</span>
+                       </div>
                        
                        {order.status === 'pending' && (
                          <button
@@ -364,16 +413,18 @@ export default function App() {
         <div className="border-t border-b border-dashed border-gray-300 py-4 mb-4">
           <table className="w-full text-right align-top">
             <thead>
-              <tr className="text-gray-500 text-sm">
-                <th className="pb-2">آیتم</th>
+              <tr className="text-gray-500 text-sm border-b border-black">
+                <th className="pb-2 text-right">آیتم</th>
+                <th className="pb-2 text-center">فی</th>
                 <th className="pb-2 w-12 text-center">تعداد</th>
-                <th className="pb-2 w-24 text-left">قیمت</th>
+                <th className="pb-2 w-24 text-left">مبلغ</th>
               </tr>
             </thead>
             <tbody>
               {cart.map(item => (
-                <tr key={item.id} className="font-medium">
-                  <td className="py-2">{item.name}</td>
+                <tr key={item.id} className="font-medium text-sm border-b border-gray-100 last:border-0">
+                  <td className="py-2 text-right">{item.name}</td>
+                  <td className="py-2 text-center text-gray-500 text-xs">{item.price.toLocaleString()}</td>
                   <td className="py-2 text-center">{item.qty}</td>
                   <td className="py-2 text-left">{(item.price * item.qty).toLocaleString()}</td>
                 </tr>
